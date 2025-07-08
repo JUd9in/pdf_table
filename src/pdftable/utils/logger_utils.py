@@ -56,7 +56,7 @@ def get_log_file_name(file_name):
     pre_name = str(file_name)[:index]
     last_name = str(file_name)[index:]
     log_file = "{}_{}{}".format(pre_name, get_time(), last_name)
-    print(log_file)
+    # print(log_file)
     dir_name = os.path.dirname(log_file)
     if not os.path.exists(dir_name):
         os.makedirs(dir_name)
