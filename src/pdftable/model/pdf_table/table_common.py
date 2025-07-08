@@ -516,22 +516,18 @@ def compute_iou_v2(boxes_preds, boxes_labels):
     return intersection / (box1_area + box2_area - intersection + 1e-6)
 
 
-def calc_cell_width(col_pairs: List, min_width=4):
+def calc_cell_width(col_pairs: List, min_width: int = 4) -> float:
     """
-    计算cell 的宽度
-    :param col_pairs:
-    :param min_width:
-    :return:
+    计算列宽平均值，若无有效列宽返回 0
     """
-    col_widths = []
-    for col in col_pairs:
-        width = round(abs(col[0] - col[1]))
-        if width < min_width:
-            continue
-        col_widths.append(width)
-
-    avg_width = np.average(col_widths)
-    return avg_width
+    widths = [
+        round(abs(a - b))
+        for a, b in col_pairs
+        if abs(a - b) >= min_width
+    ]
+    if not widths:
+        return 0.0
+    return float(np.average(widths))
 
 
 class TableProcessUtils(object):
@@ -574,98 +570,164 @@ class TableProcessUtils(object):
 
         return table_cells
 
+    # @staticmethod
+    # def cell_to_html(table_cells: List[Cell], first_header=True,
+    #                  add_width=True, add_text=True):
+    #     """
+    #     cell to html
+
+    #     :param table_cells:
+    #     :param first_header:
+    #     :param add_width:
+    #     :param add_text:
+    #     :return:
+    #     """
+    #     row_dict_sorted = TableProcessUtils.convert_table_cell_to_dict(table_cells)
+    #     # print("length:", len(row_dict_sorted))
+    #     first_header = False
+    #     if len(row_dict_sorted) > 1:
+    #         first_rows = row_dict_sorted[1]
+    #         first_row_row_spans = [cell for cell in first_rows if cell.row_span > 1]
+    #         first_row_texts = [cell for cell in first_rows if len(cell.text) == 0]
+    #         if first_header and (len(first_row_row_spans) >= 1 or len(first_row_texts) >= 1):
+    #             first_header = False
+
+    #     if len(row_dict_sorted) < 2:
+    #         first_header = False
+
+    #     html_row_list = []
+    #     for row_index, cols in row_dict_sorted.items():
+    #         one_cols = ['<tr>']
+    #         table_cell_token = "td"
+    #         if first_header and row_index == 1:
+    #             table_cell_token = "th"
+
+    #         all_row_span = [cell.row_span for col_index, cell in enumerate(cols) if cell.row_span > 1]
+    #         all_row_span_same = True
+    #         for row_span in all_row_span:
+    #             if row_span != all_row_span[0]:
+    #                 all_row_span_same = False
+
+    #         fix_row_span_same = False
+    #         if len(all_row_span) == len(cols) and len(cols) > 0 and all_row_span_same:
+    #             fix_row_span_same = True
+
+    #         for col_index, cell in enumerate(cols):
+    #             colspan = f'colspan="{int(cell.col_span)}" ' if cell.col_span > 1 else ""
+    #             rowspan = f'rowspan="{int(cell.row_span)}" ' if cell.row_span > 1 else ""
+    #             if add_width:
+    #                 width = f'width="{round(cell.width_ratio * 100)}%"' if cell.width > 0 else ""
+    #             else:
+    #                 width = ""
+
+    #             if fix_row_span_same:
+    #                 rowspan = ""
+
+    #             texts = cell.text.replace("\n", "<br/>") if add_text else ""
+    #             one_cell = f'<{table_cell_token} {colspan}{rowspan}{width}>{texts}</{table_cell_token}>'
+    #             one_cols.append(one_cell)
+    #         one_cols.append('</tr>')
+    #         html_row_list.append(one_cols)
+
+    #     # show html
+    #     table_html = [
+    #         '<table border="1">',
+    #     ]
+
+    #     body_begin = 0
+    #     if first_header:
+    #         header_list = ['<thead>']
+    #         header_list.extend(html_row_list[0])
+    #         header_list.append('</thead>')
+    #         body_begin = 1
+    #         table_html.extend(header_list)
+
+    #     table_html.append('<tbody>')
+    #     for rows in html_row_list[body_begin:]:
+    #         table_html.extend(rows)
+
+    #     table_html.append('</tbody>')
+    #     table_html.append('</table>')
+
+    #     # db_table_html html
+    #     db_table_html = [
+    #         "<table class='pdf-table' border='1' width='100%'>",
+    #     ]
+    #     for rows in html_row_list:
+    #         if rows[0] == "<tr>":
+    #             rows[0] = '<tr align="center">'
+    #         new_rows = [row.replace("<th ", "<td ").replace("</th>", "</td>") for row in rows]
+    #         one_row = ''.join(new_rows)
+    #         db_table_html.append(one_row)
+    #     db_table_html.append('</table>')
+
+    #     return table_html, db_table_html
+    
     @staticmethod
     def cell_to_html(table_cells: List[Cell], first_header=True,
                      add_width=True, add_text=True):
         """
-        cell to html
-
-        :param table_cells:
-        :param first_header:
-        :param add_width:
-        :param add_text:
-        :return:
+        cell to html with debug # prints
         """
+
+        # —— 转成按行分组的 dict ——
         row_dict_sorted = TableProcessUtils.convert_table_cell_to_dict(table_cells)
 
-        first_header = False
-        if len(row_dict_sorted) > 1:
-            first_rows = row_dict_sorted[1]
-            first_row_row_spans = [cell for cell in first_rows if cell.row_span > 1]
-            first_row_texts = [cell for cell in first_rows if len(cell.text) == 0]
-            if first_header and (len(first_row_row_spans) >= 1 or len(first_row_texts) >= 1):
+        # for r, cols in row_dict_sorted.items():
+        
+        # 有序的行号列表
+        sorted_keys = sorted(row_dict_sorted.keys())
+
+        # 确定表头行索引（默认最小行号）
+        header_index = sorted_keys[0] if sorted_keys else None
+
+        # —— first_header 判断 ——
+        if header_index is None or len(sorted_keys) < 2:
+            first_header = False
+        else:
+            first_rows = row_dict_sorted[header_index]
+            # spans = [c.row_span for c in first_rows]
+            # empties = [c for c in first_rows if not c.text]
+            # 非表头行条件：全部合并或全部为空
+            if all(c.row_span > 1 for c in first_rows) or all(not c.text for c in first_rows):
                 first_header = False
 
-        if len(row_dict_sorted) < 2:
-            first_header = False
-
+        # —— 构造每行 HTML ——
         html_row_list = []
         for row_index, cols in row_dict_sorted.items():
             one_cols = ['<tr>']
-            table_cell_token = "td"
-            if first_header and row_index == 1:
-                table_cell_token = "th"
-
-            all_row_span = [cell.row_span for col_index, cell in enumerate(cols) if cell.row_span > 1]
-            all_row_span_same = True
-            for row_span in all_row_span:
-                if row_span != all_row_span[0]:
-                    all_row_span_same = False
-
-            fix_row_span_same = False
-            if len(all_row_span) == len(cols) and len(cols) > 0 and all_row_span_same:
-                fix_row_span_same = True
-
             for col_index, cell in enumerate(cols):
                 colspan = f'colspan="{int(cell.col_span)}" ' if cell.col_span > 1 else ""
                 rowspan = f'rowspan="{int(cell.row_span)}" ' if cell.row_span > 1 else ""
-                if add_width:
-                    width = f'width="{round(cell.width_ratio * 100)}%"' if cell.width > 0 else ""
-                else:
-                    width = ""
-
-                if fix_row_span_same:
-                    rowspan = ""
-
+                width = f'width="{round(cell.width_ratio * 100)}%"' if add_width and cell.width > 0 else ""
                 texts = cell.text.replace("\n", "<br/>") if add_text else ""
-                one_cell = f'<{table_cell_token} {colspan}{rowspan}{width}>{texts}</{table_cell_token}>'
+                one_cell = f'<td {colspan}{rowspan}{width}>{texts}</td>'
                 one_cols.append(one_cell)
             one_cols.append('</tr>')
             html_row_list.append(one_cols)
-
-        # show html
-        table_html = [
-            '<table border="1">',
-        ]
-
+        
+        # —— 组装完整 HTML ——
+        table_html = ['<table border="1">']
         body_begin = 0
         if first_header:
-            header_list = ['<thead>']
-            header_list.extend(html_row_list[0])
-            header_list.append('</thead>')
-            body_begin = 1
+            header_list = ['<thead>'] + html_row_list[0] + ['</thead>']
             table_html.extend(header_list)
+            body_begin = 1
 
         table_html.append('<tbody>')
         for rows in html_row_list[body_begin:]:
             table_html.extend(rows)
+        table_html.extend(['</tbody>', '</table>'])
 
-        table_html.append('</tbody>')
-        table_html.append('</table>')
-
-        # db_table_html html
-        db_table_html = [
-            "<table class='pdf-table' border='1' width='100%'>",
-        ]
+        # —— 生成 db_table_html ——
+        db_table_html = ["<table class='pdf-table' border='1' width='100%'>"]
         for rows in html_row_list:
-            if rows[0] == "<tr>":
-                rows[0] = '<tr align="center">'
-            new_rows = [row.replace("<th ", "<td ").replace("</th>", "</td>") for row in rows]
-            one_row = ''.join(new_rows)
-            db_table_html.append(one_row)
+            new_rows = [row.replace('<th ', '<td ').replace('</th>', '</td>') for row in rows]
+            db_table_html.append(''.join(new_rows))
         db_table_html.append('</table>')
 
         return table_html, db_table_html
+
 
     @staticmethod
     def write_html_result_header(file_name):
@@ -1213,7 +1275,6 @@ class TableProcessUtils(object):
             new_table_html = f"{new_table_html_left}<td{add_span}{new_table_html_right}"
 
         # logger.info(row_begin_index)
-        # print(new_table_html)
         return new_table_html
 
     @staticmethod
@@ -1580,38 +1641,45 @@ class TableProcessUtils(object):
         return TableProcessUtils.build_table_cell_from_table_unit(pred_table.ulist)
 
     @staticmethod
-    def build_table_cell_from_table_unit(table_units: List[TableUnit], text="test_text") -> List[Cell]:
+    def build_table_cell_from_table_unit(
+            table_units: List[TableUnit],
+            text: str = "test_text"
+    ) -> List[Cell]:
         """
-        table unit 转 table cell
-
-        :param table_units:
-        :param text:
-        :return:
+        table unit → table cell
         """
-        table_cells = []
-        if len(table_units) == 0:
+        table_cells: List[Cell] = []
+        if not table_units:
             return table_cells
+
+        eps = 1e-6  # 防 0 下限
+
         table_lt = table_units[0].bbox.point1[0]
         table_rb = table_units[-1].bbox.point3[0]
-        table_width = table_rb[0] - table_lt[0]
-        table_height = table_rb[1] - table_lt[1]
+        table_width  = max(table_rb[0] - table_lt[0], eps)
+        table_height = max(table_rb[1] - table_lt[1], eps)
+
         for item in table_units:
             x1, y1 = item.bbox.point4[0]
             x2, y2 = item.bbox.point2[0]
-            row_index = item.top_idx + 1
-            col_index = item.left_idx + 1
-            cell = Cell(x1, y1, x2, y2, row_index=row_index, col_index=col_index)
+
+            cell = Cell(
+                x1, y1, x2, y2,
+                row_index=item.top_idx  + 1,
+                col_index=item.left_idx + 1
+            )
             cell.lt = item.bbox.point1[0]
             cell.rb = item.bbox.point3[0]
             cell.row_span = item.bottom_idx - item.top_idx + 1
-            cell.col_span = item.right_idx - item.left_idx + 1
+            cell.col_span = item.right_idx  - item.left_idx + 1
             cell.text = text
 
-            cell.width_ratio = item.bbox.get_col_span() / table_width
+            cell.width_ratio  = item.bbox.get_col_span() / table_width
             cell.height_ratio = item.bbox.get_row_span() / table_height
-
             table_cells.append(cell)
+
         return table_cells
+
 
     @staticmethod
     def check_pdf_text_need_rotate90(det_result):
@@ -1681,53 +1749,43 @@ class TableProcessUtils(object):
         return save_html_file
 
     @staticmethod
-    def modify_cell_info(all_cells: List[Cell], cols, rows,
-                         one_col_width, one_row_height,
-                         is_pdf=False, ):
+    def modify_cell_info(
+            all_cells: List[Cell],
+            cols, rows,
+            one_col_width, one_row_height,
+            is_pdf: bool = False,
+    ):
         """
-        修改cell 的属性
-
-        :param all_cells:
-        :param cols:
-        :param rows:
-        :param one_col_width:
-        :param one_row_height:
-        :param is_pdf:
-        :return:
+        更新 Cell 的行列索引、跨度与宽高比
         """
-        col_map = {col: index + 1 for index, col in enumerate(cols)}
+        col_map = {c: idx + 1 for idx, c in enumerate(cols)}
+        rows_rev = rows[:]  # PDF y 轴方向与图像一致时无需反转
+        row_map = {r: idx + 1 for idx, r in enumerate(rows_rev)}
 
-        # pdf 和image 的y 轴相反
-        rows_reverse = copy.deepcopy(rows)
-        # rows_reverse.reverse()
-        row_map = {row: index + 1 for index, row in enumerate(rows_reverse)}
-        if not is_pdf:
-            sort_cell_key = lambda x: (-x.y1, x.x1)
-        else:
-            sort_cell_key = lambda x: (x.y1, x.x1)
+        key_fn = (lambda x: (-x.y1, x.x1)) if not is_pdf else (lambda x: (x.y1, x.x1))
+        eps = 1e-6
+        col_w_safe  = max(one_col_width,  eps)
+        row_h_safe  = max(one_row_height, eps)
 
-        new_all_cells = sorted(all_cells, key=sort_cell_key)
-        for cell in new_all_cells:
+        new_cells = sorted(all_cells, key=key_fn)
+        for cell in new_cells:
             try:
-                start_col_index = col_map.get(cell.x1)
-                start_row_index = row_map.get(cell.y1)
+                cell.col_index = col_map[cell.x1]
+                cell.row_index = row_map[cell.y1]
 
-                end_col_index = col_map.get(cell.x2)
-                end_row_index = row_map.get(cell.y2)
+                end_col_idx = col_map[cell.x2]
+                end_row_idx = row_map[cell.y2]
+                cell.col_span = abs(end_col_idx - cell.col_index)
+                cell.row_span = abs(end_row_idx - cell.row_index)
 
-                cell.col_index = start_col_index
-                cell.row_index = start_row_index
-                cell.col_span = abs(end_col_index - start_col_index)
-                cell.row_span = abs(end_row_index - start_row_index)
+                cell.width_ratio  = cell.width  / col_w_safe
+                cell.height_ratio = cell.height / row_h_safe
+            except Exception:
+                pass  # 忽略无法映射的极端情况
 
-                cell.width_ratio = cell.width / one_col_width
-                cell.height_ratio = cell.height / one_row_height
-            except Exception as e:
-                # traceback.print_exc()
-                pass
-        logger.info(f"new_all_cells: {len(new_all_cells)}")
+        logger.info(f"new_all_cells: {len(new_cells)}")
+        return new_cells
 
-        return new_all_cells
 
     @staticmethod
     def save_table_join_point(image, table_bbox_unscaled, save_image_file,
