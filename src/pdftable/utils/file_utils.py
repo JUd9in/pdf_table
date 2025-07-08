@@ -186,7 +186,7 @@ class FileUtils(BaseUtil):
         dir_name = os.path.dirname(filename)
         if not os.path.exists(dir_name):
             os.makedirs(dir_name, exist_ok=True)
-            print("文件夹不存在,创建目录:{}".format(dir_name))
+            logger.info("文件夹不存在,创建目录:{}".format(dir_name))
         return os.path.exists(filename)
 
     @staticmethod
@@ -371,7 +371,7 @@ class FileUtils(BaseUtil):
         if isinstance(filepath, str):
             basename = os.path.basename(filepath)
             if not os.path.exists(filepath):
-                print(f"路径不存在:{filepath}")
+                logger.info(f"路径不存在:{filepath}")
                 return None, None
             elif os.path.isfile(filepath) and basename not in ignore_file_names and ignore_func(filepath):
                 return [filepath], [basename]
